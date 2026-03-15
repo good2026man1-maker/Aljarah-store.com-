@@ -1,0 +1,647 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { MessageCircle, X, Send, ArrowRight, CheckCircle2, Bot, Sparkles, Code, Palette, Video, Mic, Music, Layout } from 'lucide-react';
+import { GoogleGenAI } from '@google/genai';
+
+// --- Configuration ---
+const PHONE_NUMBER = '967777576676';
+const getWhatsAppLink = (text: string) => `https://wa.me/${PHONE_NUMBER}?text=${encodeURIComponent(text)}`;
+
+// --- Data Models ---
+const SUBSCRIPTIONS = [
+  { id: 'gemini-pro-1y', name: 'Gemini Advanced (سنة)', price: '10$', originalPrice: '120$', desc: 'وصول كامل لنموذج Gemini 1.5 Pro لمدة سنة كاملة. الأفضل للإنتاجية العالية.', icon: '✨', color: 'from-blue-500 to-purple-600' },
+  { id: 'gemini-pro-1m', name: 'Gemini Advanced (شهر)', price: '2$', originalPrice: '20$', desc: 'تجربة نموذج Gemini 1.5 Pro لمدة شهر مع كافة الميزات المتقدمة.', icon: '🌟', color: 'from-blue-400 to-indigo-500' },
+  { id: 'chatgpt-plus', name: 'ChatGPT Plus', price: '15$', originalPrice: '20$', desc: 'اشتراك بلس يتيح لك الوصول لـ GPT-4o و DALL-E 3 لتوليد الصور.', icon: '🤖', color: 'from-emerald-500 to-teal-600' },
+  { id: 'claude-pro', name: 'Claude Pro', price: '18$', originalPrice: '20$', desc: 'النموذج الأقوى للبرمجة وتحليل النصوص الطويلة Claude 3.5 Sonnet.', icon: '🧠', color: 'from-orange-400 to-red-500' },
+  { id: 'midjourney', name: 'Midjourney Basic', price: '8$', originalPrice: '10$', desc: 'توليد صور فنية واحترافية بالذكاء الاصطناعي بجودة خيالية.', icon: '🎨', color: 'from-slate-600 to-slate-800' },
+  { id: 'canva-pro', name: 'Canva Pro (سنة)', price: '5$', originalPrice: '55$', desc: 'تصميم جرافيكي مفتوح الميزات مع قوالب حصرية لمدة سنة.', icon: '🖌️', color: 'from-cyan-400 to-blue-500' },
+];
+
+const SERVICES = [
+  { id: 's1', title: 'تصميم شعارات وهوية بصرية', shortDesc: 'تصاميم فريدة تعبر عن جوهر علامتك التجارية.', longDesc: 'نقدم لك تصميم هوية بصرية متكاملة تبدأ من الشعار (اللوجو) وتمتد لتشمل الألوان، الخطوط، والمطبوعات (كروت شخصية، أوراق رسمية، أظرف). نضمن لك هوية تميزك عن منافسيك وتعلق في أذهان عملائك.', icon: <Palette size={32} />, image: 'https://picsum.photos/seed/branding/800/500' },
+  { id: 's2', title: 'تصميم وتطوير مواقع', shortDesc: 'تصميم جرافيكي مخصص للمواقع وتطويرها باحترافية.', longDesc: 'نبرمج ونصمم مواقع ويب تعريفية ومتاجر إلكترونية متجاوبة مع جميع الشاشات. نستخدم أحدث التقنيات لضمان سرعة الموقع، حمايته، وتصدره في محركات البحث (SEO).', icon: <Code size={32} />, image: 'https://picsum.photos/seed/webdev/800/500' },
+  { id: 's3', title: 'تصميم فيديوهات ترويجية', shortDesc: 'فيديوهات إعلانية جذابة تخطف الأنظار.', longDesc: 'نصنع فيديوهات موشن جرافيك وإعلانات ترويجية لمنصات التواصل الاجتماعي (تيك توك، انستجرام، سناب شات). نركز على إيصال رسالتك التسويقية في الثواني الأولى لجذب انتباه العميل.', icon: <Video size={32} />, image: 'https://picsum.photos/seed/video/800/500' },
+  { id: 's4', title: 'تصميم وإنتاج صوتي إعلاني', shortDesc: 'مسارات صوتية ترويجية ذات تأثير قوي.', longDesc: 'نوفر تعليق صوتي احترافي (Voice Over) بعدة لهجات ولغات، مع هندسة صوتية وإضافة مؤثرات وموسيقى خلفية تناسب طبيعة الإعلان وتزيد من تأثيره العاطفي على المستمع.', icon: <Mic size={32} />, image: 'https://picsum.photos/seed/audio/800/500' },
+  { id: 's5', title: 'إنتاج صوتي وموسيقي للقصائد', shortDesc: 'تأليف موسيقي وإلقاء صوتي احترافي للقصائد.', longDesc: 'خدمة مخصصة للشعراء ومحبي الأدب. نقوم بتسجيل القصائد بإلقاء معبر، مع تأليف مقطوعات موسيقية خاصة (أو استخدام موسيقى مرخصة) تتناغم مع بحر القصيدة ومعانيها.', icon: <Music size={32} />, image: 'https://picsum.photos/seed/poetry/800/500' },
+  { id: 's6', title: 'تصميم جرافيكي مخصص', shortDesc: 'صور وإعلانات مخصصة لكل احتياج.', longDesc: 'تصميم بوستات السوشيال ميديا، البنرات الإعلانية، البروفايلات للشركات، وتصاميم واجهات المستخدم (UI/UX) للتطبيقات. تصاميمنا مبنية على أسس علمية لجذب الانتباه وزيادة التفاعل.', icon: <Layout size={32} />, image: 'https://picsum.photos/seed/graphic/800/500' },
+];
+
+const WORKS = [
+  { id: 'w1', title: 'تطبيق توصيل "سريع"', category: 'تطبيقات جوال', shortDesc: 'تطبيق متكامل للمناديب والعملاء.', longDesc: 'برمجة وتصميم تطبيق لتوصيل الطلبات يشمل 3 واجهات (العميل، المندوب، لوحة التحكم). تم التركيز على تجربة مستخدم سلسة وتتبع حي للطلبات عبر الخرائط.', image: 'https://picsum.photos/seed/work1/800/500' },
+  { id: 'w2', title: 'منصة "إدراك" التعليمية', category: 'مواقع ويب', shortDesc: 'منصة لبيع الدورات الأونلاين.', longDesc: 'موقع ويب متكامل يتيح للمدربين رفع دوراتهم وللطلاب شرائها ومتابعتها. يدعم بوابات الدفع الإلكتروني وإصدار الشهادات التلقائية.', image: 'https://picsum.photos/seed/work2/800/500' },
+  { id: 'w3', title: 'هوية مطعم "شاورما بلس"', category: 'تصميم', shortDesc: 'هوية بصرية كاملة لمطعم وجبات سريعة.', longDesc: 'تصميم الشعار، المنيو، تغليف الوجبات (الباكجنج)، وزي الموظفين. تم استخدام ألوان تفتح الشهية وتعكس سرعة الخدمة.', image: 'https://picsum.photos/seed/work3/800/500' },
+];
+
+// --- Chatbot Component ---
+const Chatbot = () => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [messages, setMessages] = useState<{role: 'user' | 'model', text: string}[]>([
+    { role: 'model', text: 'مرحباً! أنا المساعد الذكي لمتجر الجراح. كيف يمكنني مساعدتك اليوم؟' }
+  ]);
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const chatRef = useRef<any>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, isOpen]);
+
+  const initChat = () => {
+    if (!chatRef.current) {
+      try {
+        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+        chatRef.current = ai.chats.create({
+          model: "gemini-3-flash-preview",
+          config: {
+            systemInstruction: "أنت مساعد ذكي لمتجر 'الجراح للتصميم الاحترافي' لصاحبه المصمم 'فاضل السبحي'. المتجر يقدم خدمات تصميم، تطوير مواقع، وتسويق، بالإضافة لبيع اشتراكات الذكاء الاصطناعي مثل Gemini و ChatGPT. أجب باختصار وبطريقة ودية واحترافية باللغة العربية. إذا سأل المستخدم عن الأسعار، اذكر أنها منافسة ووجهه للتواصل عبر الواتساب على الرقم 967777576676.",
+          }
+        });
+      } catch (e) {
+        console.error("Failed to init chat", e);
+      }
+    }
+  };
+
+  const handleSend = async () => {
+    if (!input.trim()) return;
+    
+    initChat();
+    const userText = input.trim();
+    setMessages(prev => [...prev, { role: 'user', text: userText }]);
+    setInput('');
+    setIsLoading(true);
+
+    try {
+      if (chatRef.current) {
+        const response = await chatRef.current.sendMessage({ message: userText });
+        setMessages(prev => [...prev, { role: 'model', text: response.text }]);
+      } else {
+        throw new Error("Chat not initialized");
+      }
+    } catch (error) {
+      console.error(error);
+      setMessages(prev => [...prev, { role: 'model', text: 'عذراً، حدث خطأ في الاتصال. يرجى المحاولة لاحقاً أو التواصل عبر الواتساب.' }]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <>
+      {/* Floating Button */}
+      <motion.button
+        initial={{ scale: 0 }}
+        animate={{ scale: 1 }}
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
+        onClick={() => setIsOpen(true)}
+        className="fixed bottom-6 right-6 w-16 h-16 bg-amber-400 text-slate-900 rounded-full shadow-2xl flex items-center justify-center z-40 border-2 border-slate-900"
+      >
+        <Bot size={32} />
+        <span className="absolute -top-2 -right-2 flex h-5 w-5">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+          <span className="relative inline-flex rounded-full h-5 w-5 bg-red-500 border-2 border-white"></span>
+        </span>
+      </motion.button>
+
+      {/* Chat Window */}
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 50, scale: 0.9 }}
+            className="fixed bottom-24 right-6 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl z-50 overflow-hidden border border-slate-200 flex flex-col h-[500px] max-h-[80vh]"
+          >
+            {/* Chat Header */}
+            <div className="bg-slate-900 text-white p-4 flex justify-between items-center border-b-4 border-amber-400">
+              <div className="flex items-center gap-3">
+                <div className="bg-amber-400 text-slate-900 p-2 rounded-full">
+                  <Bot size={20} />
+                </div>
+                <div>
+                  <h3 className="font-bold">مساعد الجراح الذكي</h3>
+                  <p className="text-xs text-slate-300">متصل الآن</p>
+                </div>
+              </div>
+              <button onClick={() => setIsOpen(false)} className="text-slate-300 hover:text-white transition-colors">
+                <X size={24} />
+              </button>
+            </div>
+
+            {/* Chat Messages */}
+            <div className="flex-1 p-4 overflow-y-auto bg-slate-50 flex flex-col gap-3">
+              {messages.map((msg, idx) => (
+                <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[80%] p-3 rounded-2xl text-sm leading-relaxed ${
+                    msg.role === 'user' 
+                      ? 'bg-amber-400 text-slate-900 rounded-br-sm' 
+                      : 'bg-white text-slate-800 border border-slate-200 rounded-bl-sm shadow-sm'
+                  }`}>
+                    {msg.text}
+                  </div>
+                </div>
+              ))}
+              {isLoading && (
+                <div className="flex justify-start">
+                  <div className="bg-white border border-slate-200 p-3 rounded-2xl rounded-bl-sm shadow-sm flex gap-1">
+                    <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></span>
+                    <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></span>
+                    <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></span>
+                  </div>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Chat Input */}
+            <div className="p-3 bg-white border-t border-slate-200 flex gap-2">
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+                placeholder="اكتب رسالتك هنا..."
+                className="flex-1 bg-slate-100 border-none rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+              />
+              <button 
+                onClick={handleSend}
+                disabled={isLoading || !input.trim()}
+                className="bg-slate-900 text-amber-400 p-2 rounded-xl hover:bg-slate-800 disabled:opacity-50 transition-colors"
+              >
+                <Send size={20} className="rotate-180" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
+  );
+};
+
+// --- Main App ---
+export default function App() {
+  const [view, setView] = useState<'home' | 'details'>('home');
+  const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [isAdModalOpen, setIsAdModalOpen] = useState(false);
+  const [adText, setAdText] = useState('');
+  const [adStep, setAdStep] = useState<'input' | 'sent' | 'type'>('input');
+  const [adType, setAdType] = useState<'عادي' | 'vip' | null>(null);
+
+  const openDetails = (item: any) => {
+    setSelectedItem(item);
+    setView('details');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleSendAd = () => {
+    if (!adText.trim()) return;
+    setAdStep('sent');
+  };
+
+  const handleNextAdStep = () => {
+    setAdStep('type');
+  };
+
+  const handleFinalizeAd = (type: 'عادي' | 'vip') => {
+    setAdType(type);
+    const message = `مرحباً، أريد طلب إعلان ${type}.\n\nتفاصيل الإعلان:\n${adText}`;
+    window.open(getWhatsAppLink(message), '_blank');
+    setIsAdModalOpen(false);
+    setTimeout(() => {
+      setAdStep('input');
+      setAdText('');
+      setAdType(null);
+    }, 500);
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-900 font-sans text-slate-100 selection:bg-amber-400 selection:text-slate-900">
+      
+      {/* Announcement Bar */}
+      <div className="bg-red-600 text-white flex items-center h-10 overflow-hidden relative z-50">
+        <button 
+          onClick={() => setIsAdModalOpen(true)}
+          className="bg-slate-900 text-amber-400 font-bold px-4 h-full flex-shrink-0 z-10 hover:bg-slate-800 transition-colors border-l-2 border-red-700"
+        >
+          إعلانات
+        </button>
+        <div className="flex-1 overflow-hidden relative h-full flex items-center">
+          <div className="animate-marquee-rtl whitespace-nowrap text-sm font-medium">
+            <span className="mx-4">🔥 خصومات كبرى على اشتراكات الذكاء الاصطناعي!</span>
+            <span className="mx-4">✨ تصميم شعارات وهوية بصرية بأسعار تنافسية.</span>
+            <span className="mx-4">🚀 اطلب موقعك الإلكتروني الآن واحصل على استضافة مجانية.</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Ad Modal */}
+      <AnimatePresence>
+        {isAdModalOpen && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-white text-slate-900 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl border-2 border-amber-400"
+            >
+              <div className="bg-slate-900 text-amber-400 p-4 flex justify-between items-center">
+                <h3 className="font-bold text-lg">طلب عرض إعلان</h3>
+                <button onClick={() => setIsAdModalOpen(false)} className="hover:text-white transition-colors">
+                  <X size={24} />
+                </button>
+              </div>
+              
+              <div className="p-6">
+                {adStep === 'input' && (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                    <p className="text-slate-600 mb-4 font-medium">يرجى وصف إعلانك في المربع الفارغ وسنقوم بنشره لك:</p>
+                    <textarea 
+                      value={adText}
+                      onChange={(e) => setAdText(e.target.value)}
+                      placeholder="اكتب تفاصيل إعلانك هنا..."
+                      className="w-full h-32 bg-slate-50 border border-slate-200 rounded-xl p-4 mb-4 focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
+                    ></textarea>
+                    <div className="flex gap-3">
+                      <button 
+                        onClick={handleSendAd}
+                        disabled={!adText.trim()}
+                        className="flex-1 bg-red-500 text-white py-3 rounded-xl font-bold hover:bg-red-600 transition-colors disabled:opacity-50"
+                      >
+                        إرسال
+                      </button>
+                      <button 
+                        disabled={true}
+                        className="flex-1 bg-slate-200 text-slate-400 py-3 rounded-xl font-bold cursor-not-allowed"
+                      >
+                        التالي
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+
+                {adStep === 'sent' && (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-4">
+                    <div className="w-16 h-16 bg-green-100 text-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <CheckCircle2 size={32} />
+                    </div>
+                    <h4 className="text-xl font-bold text-slate-900 mb-2">تم الإرسال بنجاح!</h4>
+                    <p className="text-slate-500 mb-6">انتقل للتالي لاستكمال التجهيز</p>
+                    <div className="flex gap-3">
+                      <button 
+                        disabled={true}
+                        className="flex-1 bg-slate-200 text-slate-400 py-3 rounded-xl font-bold cursor-not-allowed"
+                      >
+                        إرسال
+                      </button>
+                      <button 
+                        onClick={handleNextAdStep}
+                        className="flex-1 bg-amber-400 text-slate-900 py-3 rounded-xl font-bold hover:bg-amber-500 transition-colors"
+                      >
+                        التالي
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+
+                {adStep === 'type' && (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                    <h4 className="text-xl font-bold text-slate-900 mb-4 text-center">اختر نوع الإعلان</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <button 
+                        onClick={() => handleFinalizeAd('عادي')}
+                        className="bg-slate-100 hover:bg-slate-200 border-2 border-slate-200 text-slate-900 p-6 rounded-2xl font-bold transition-all flex flex-col items-center gap-2"
+                      >
+                        <span className="text-2xl">📢</span>
+                        إعلان عادي
+                      </button>
+                      <button 
+                        onClick={() => handleFinalizeAd('vip')}
+                        className="bg-amber-50 hover:bg-amber-100 border-2 border-amber-400 text-amber-700 p-6 rounded-2xl font-bold transition-all flex flex-col items-center gap-2"
+                      >
+                        <span className="text-2xl">👑</span>
+                        إعلان VIP
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence mode="wait">
+        {view === 'home' ? (
+          <motion.div key="home" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            {/* Header */}
+            <header className="bg-gradient-to-br from-slate-900 to-slate-800 text-slate-50 text-center py-20 px-5 border-b-4 border-amber-400 shadow-lg relative overflow-hidden">
+              <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-amber-400 via-transparent to-transparent"></div>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.5 }}
+                className="relative z-10 max-w-3xl mx-auto"
+              >
+                <h1 className="text-6xl md:text-8xl font-black m-0 tracking-tight drop-shadow-xl">
+                  A<span className="text-red-500">J</span> AL-JARAH
+                </h1>
+                <div className="w-24 h-1.5 bg-amber-400 mx-auto mt-6 rounded-full"></div>
+                <p className="text-amber-400 text-2xl md:text-3xl mt-6 font-bold drop-shadow-md">
+                  متجر الجراح للتصميم الاحترافي
+                </p>
+                <p className="text-slate-300 text-lg md:text-xl mt-4 max-w-2xl mx-auto leading-relaxed">
+                  نحول أفكارك إلى واقع ملموس من خلال تصاميم إبداعية، حلول برمجية متطورة، وخدمات تسويقية متكاملة.
+                </p>
+              </motion.div>
+            </header>
+
+            <main className="max-w-6xl mx-auto p-5 pb-24">
+              
+              {/* Exclusive Offers Section */}
+              <div className="mt-12 mb-16">
+                <div className="flex items-center justify-between mb-8">
+                  <h2 className="text-3xl md:text-4xl font-black text-white flex items-center gap-3">
+                    <span className="bg-red-500 text-white p-2 rounded-xl"><Sparkles size={28} /></span>
+                    العروض الحصرية
+                  </h2>
+                </div>
+
+                {/* Gemini Promo Card */}
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl p-1 md:p-2 shadow-2xl border border-slate-700 relative overflow-hidden"
+                >
+                  <div className="absolute top-0 right-0 w-64 h-64 bg-amber-400/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+                  <div className="absolute bottom-0 left-0 w-64 h-64 bg-red-500/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2"></div>
+                  
+                  <div className="bg-slate-900/80 backdrop-blur-sm rounded-[1.3rem] p-6 md:p-10 flex flex-col md:flex-row items-center gap-8 relative z-10 border border-slate-700/50">
+                    <div className="flex-1 text-center md:text-right">
+                      <div className="inline-block bg-red-500/20 border border-red-500/50 text-red-400 px-4 py-1.5 rounded-full text-sm font-bold mb-4 animate-pulse">
+                        عرض العشر الأواخر من شهر رمضان المبارك
+                      </div>
+                      <h3 className="text-3xl md:text-4xl font-black text-amber-400 mb-4 leading-tight">
+                        تفعيل اشتراك Gemini Pro <br className="hidden md:block" />
+                        <span className="text-white text-2xl md:text-3xl">لمدة سنة كاملة</span>
+                      </h3>
+                      <p className="text-slate-300 text-lg mb-6 leading-relaxed">
+                        ضاعف إنتاجيتك واستثمر في مستقبلك الرقمي مع أقوى نماذج الذكاء الاصطناعي. تفعيل رسمي وآمن لمدة 365 يوماً.
+                      </p>
+                      <div className="flex flex-col sm:flex-row items-center gap-4 mb-8 justify-center md:justify-start">
+                        <div className="bg-slate-800 px-6 py-3 rounded-2xl border border-slate-700">
+                          <span className="block text-sm text-slate-400 mb-1">السعر السابق</span>
+                          <span className="text-2xl font-bold text-slate-500 line-through decoration-red-500/50">120$</span>
+                        </div>
+                        <div className="bg-gradient-to-br from-amber-400 to-amber-500 px-8 py-3 rounded-2xl shadow-lg shadow-amber-500/20 transform hover:scale-105 transition-transform">
+                          <span className="block text-sm text-amber-900 font-bold mb-1">السعر الحالي</span>
+                          <span className="text-3xl font-black text-slate-900">10$ <span className="text-lg font-bold">فقط</span></span>
+                        </div>
+                      </div>
+                      <a 
+                        href={getWhatsAppLink(`مرحباً، أريد الاستفادة من عرض رمضان لتفعيل اشتراك Gemini Pro لمدة سنة بسعر 10$`)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center justify-center gap-2 bg-red-500 text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-red-600 transition-colors shadow-lg shadow-red-500/30 w-full sm:w-auto"
+                      >
+                        <Sparkles size={20} /> اطلب التفعيل الآن
+                      </a>
+                    </div>
+                    <div className="w-full md:w-1/3 flex justify-center">
+                      <div className="relative">
+                        <div className="absolute inset-0 bg-amber-400 blur-2xl opacity-20 rounded-full animate-pulse"></div>
+                        <div className="text-9xl relative z-10 drop-shadow-2xl transform hover:scale-110 transition-transform duration-500">
+                          📱✨
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              </div>
+
+              {/* Subscriptions Section */}
+              <div className="mt-20 mb-16">
+                <div className="text-center mb-12">
+                  <h2 className="inline-block text-3xl md:text-4xl font-black text-white relative">
+                    🚀 اشتراكات الذكاء الاصطناعي
+                    <span className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-1/2 h-1.5 bg-amber-400 rounded-full"></span>
+                  </h2>
+                  <p className="text-slate-400 mt-8 text-lg">أقوى أدوات الذكاء الاصطناعي بأسعار منافسة وتفعيل فوري وآمن.</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {SUBSCRIPTIONS.map((sub, idx) => (
+                    <motion.div 
+                      key={sub.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ delay: idx * 0.1 }}
+                      className="bg-slate-800 rounded-2xl p-6 shadow-lg hover:shadow-2xl transition-all border border-slate-700 relative overflow-hidden group"
+                    >
+                      <div className={`absolute top-0 right-0 w-full h-2 bg-gradient-to-r ${sub.color}`}></div>
+                      <div className="flex justify-between items-start mb-4">
+                        <div className="text-4xl">{sub.icon}</div>
+                        <div className="text-left">
+                          <span className="block text-sm text-slate-400 line-through">{sub.originalPrice}</span>
+                          <span className="block text-2xl font-black text-amber-400">{sub.price}</span>
+                        </div>
+                      </div>
+                      <h3 className="text-xl font-bold text-white mb-2">{sub.name}</h3>
+                      <p className="text-slate-400 text-sm leading-relaxed mb-6 h-16">{sub.desc}</p>
+                      <a 
+                        href={getWhatsAppLink(`مرحباً، أريد طلب تفعيل اشتراك: ${sub.name}`)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full flex items-center justify-center gap-2 bg-slate-700 text-white py-3 rounded-xl font-bold hover:bg-slate-600 transition-colors border border-slate-600"
+                      >
+                        <Sparkles size={18} className="text-amber-400" /> طلب التفعيل الآن
+                      </a>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Services Section */}
+              <div className="mt-24 mb-16">
+                <div className="text-center mb-12">
+                  <h2 className="inline-block text-3xl md:text-4xl font-black text-white relative">
+                    🎨 خدماتنا الاحترافية
+                    <span className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-1/2 h-1.5 bg-amber-400 rounded-full"></span>
+                  </h2>
+                </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {SERVICES.map((service, idx) => (
+                    <motion.div 
+                      key={service.id}
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      whileInView={{ opacity: 1, scale: 1 }}
+                      viewport={{ once: true }}
+                      transition={{ delay: idx * 0.1 }}
+                      onClick={() => openDetails(service)}
+                      className="bg-slate-800 p-8 rounded-2xl text-center shadow-lg hover:shadow-2xl transition-all duration-300 border-t-4 border-slate-700 hover:border-amber-400 cursor-pointer group"
+                    >
+                      <div className="text-amber-400 mb-5 flex justify-center group-hover:scale-110 group-hover:text-amber-300 transition-all duration-300">
+                        {service.icon}
+                      </div>
+                      <h3 className="font-bold text-xl mb-3 text-white">{service.title}</h3>
+                      <p className="text-base text-slate-400 leading-relaxed mb-4">{service.shortDesc}</p>
+                      <span className="text-amber-400 font-bold text-sm flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        عرض التفاصيل <ArrowRight size={16} className="rotate-180" />
+                      </span>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Works Section */}
+              <div className="mt-24 mb-10">
+                <div className="text-center mb-12">
+                  <h2 className="inline-block text-3xl md:text-4xl font-black text-white relative">
+                    💼 معرض الأعمال
+                    <span className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-1/2 h-1.5 bg-amber-400 rounded-full"></span>
+                  </h2>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {WORKS.map((work, idx) => (
+                    <motion.div 
+                      key={work.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ delay: idx * 0.1 }}
+                      onClick={() => openDetails(work)}
+                      className="bg-slate-800 rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all cursor-pointer group border border-slate-700"
+                    >
+                      <div className="relative overflow-hidden h-48">
+                        <img 
+                          src={work.image} 
+                          alt={work.title} 
+                          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
+                          referrerPolicy="no-referrer" 
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-900 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
+                          <span className="text-amber-400 font-bold flex items-center gap-2">
+                            استعراض العمل <ArrowRight size={16} className="rotate-180" />
+                          </span>
+                        </div>
+                      </div>
+                      <div className="p-5">
+                        <div className="text-xs font-bold text-red-500 mb-2">{work.category}</div>
+                        <h3 className="font-bold text-lg text-white mb-2">{work.title}</h3>
+                        <p className="text-sm text-slate-400">{work.shortDesc}</p>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+
+            </main>
+          </motion.div>
+        ) : (
+          /* Details View */
+          <motion.div 
+            key="details" 
+            initial={{ opacity: 0, x: -50 }} 
+            animate={{ opacity: 1, x: 0 }} 
+            exit={{ opacity: 0, x: 50 }}
+            className="min-h-screen bg-slate-900 pb-24"
+          >
+            {/* Details Header */}
+            <div className="bg-slate-800 text-white p-4 sticky top-0 z-30 shadow-md flex items-center gap-4 border-b border-slate-700">
+              <button 
+                onClick={() => setView('home')}
+                className="bg-slate-700 p-2 rounded-full hover:bg-slate-600 transition-colors text-amber-400"
+              >
+                <ArrowRight size={24} />
+              </button>
+              <h2 className="font-bold text-lg truncate">{selectedItem?.title}</h2>
+            </div>
+
+            <div className="max-w-4xl mx-auto">
+              {/* Hero Image */}
+              <div className="w-full h-64 md:h-96 relative">
+                <img 
+                  src={selectedItem?.image} 
+                  alt={selectedItem?.title} 
+                  className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/50 to-transparent"></div>
+                <div className="absolute bottom-6 right-6 left-6">
+                  {selectedItem?.category && (
+                    <span className="bg-red-500 text-white px-3 py-1 rounded-full text-sm font-bold mb-3 inline-block">
+                      {selectedItem.category}
+                    </span>
+                  )}
+                  <h1 className="text-3xl md:text-5xl font-black text-white drop-shadow-lg">
+                    {selectedItem?.title}
+                  </h1>
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className="p-6 md:p-10">
+                <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 mb-8 shadow-lg">
+                  <h3 className="text-xl font-bold text-amber-400 mb-2 flex items-center gap-2">
+                    <Sparkles className="text-amber-400" /> نظرة عامة
+                  </h3>
+                  <p className="text-slate-300 text-lg leading-relaxed">
+                    {selectedItem?.shortDesc}
+                  </p>
+                </div>
+
+                <h3 className="text-2xl font-bold text-white mb-4">التفاصيل الكاملة</h3>
+                <p className="text-slate-400 text-lg leading-loose mb-10 whitespace-pre-line">
+                  {selectedItem?.longDesc}
+                </p>
+
+                <div className="border-t border-slate-700 pt-8 text-center">
+                  <h4 className="text-xl font-bold text-white mb-4">هل أعجبتك هذه الخدمة؟</h4>
+                  <a 
+                    href={getWhatsAppLink(`مرحباً، أريد الاستفسار عن: ${selectedItem?.title}`)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center gap-3 bg-amber-400 text-slate-900 px-8 py-4 rounded-xl font-black text-lg hover:bg-amber-500 transition-all hover:scale-105 shadow-xl shadow-amber-400/20"
+                  >
+                    <MessageCircle size={24} /> تواصل معنا لطلب الخدمة
+                  </a>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Footer (Only show on home view) */}
+      {view === 'home' && (
+        <footer className="bg-slate-900 text-slate-50 text-center py-16 px-5 border-t-4 border-slate-800 relative z-10">
+          <h2 className="text-3xl font-black mb-8 text-amber-400">المصمم / فاضل السبحي</h2>
+          <div className="flex flex-col md:flex-row justify-center items-center gap-4 mb-10">
+            <a href={`tel:+${PHONE_NUMBER}`} className="text-lg flex items-center gap-3 hover:text-amber-400 transition-colors bg-slate-800 px-8 py-4 rounded-2xl w-full md:w-auto" dir="ltr">
+              <span>📞</span> +{PHONE_NUMBER}
+            </a>
+            <a href="mailto:fadelalsobhi@gmail.com" className="text-lg flex items-center gap-3 hover:text-amber-400 transition-colors bg-slate-800 px-8 py-4 rounded-2xl w-full md:w-auto" dir="ltr">
+              <span>✉️</span> fadelalsobhi@gmail.com
+            </a>
+          </div>
+          <p className="text-slate-400 text-sm font-medium">جميع الحقوق محفوظة لمتجر الجراح © 2026</p>
+        </footer>
+      )}
+
+      {/* Chatbot */}
+      <Chatbot />
+    </div>
+  );
+}
